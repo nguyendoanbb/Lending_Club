@@ -1,0 +1,81 @@
+---
+title: "Initial_Analysis"
+author: "Nguyen Doan"
+date: "5/6/2019"
+output: html_document
+---
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F, echo=F, warning=F}
+library(data.table)
+library(tidyverse)
+
+data <- fread('LoanStats_2018Q1.csv', skip = 1, header = T, fill = TRUE, stringsAsFactors = TRUE)
+data1 <- fread('LoanStats_2018Q2.csv', skip = 1, header = T, stringsAsFactors = TRUE)
+data2 <- fread('LoanStats_2018Q3.csv', skip = 1, header = T, stringsAsFactors = TRUE)
+data3 <- fread('LoanStats_2018Q4.csv', skip = 1, header = T, fill= TRUE, stringsAsFactors = TRUE)
+
+full <- rbind(data, data1, data2, data3)
+remove(data, data1, data2, data3)
+```
+
+```{r}
+#remove unimportant features
+data <- full %>%
+  select(-c(id, member_id)) %>%
+  filter(loan_status != '') %>%
+  droplevels()
+na_values <- tibble(name = names(data), na_count = sapply(data, function(x) sum(is.na(x))))
+na_values <- na_values %>%
+  arrange(desc(na_count)) %>%
+  mutate(percent = round(na_count/nrow(full)*100, 2))
+features_to_remove <- na_values$name[na_values$percent > 90.00]
+data <- data %>%
+  select(-c(features_to_remove))
+remove(na_values, features_to_remove)
+```
+
+```{r}
+#rename values for status
+data <- data %>%
+  mutate(loan_status = recode_factor(loan_status, 'Charged Off' = 'Bad', 'Default' = 'Bad', 'Current' = 'Good', 'Fully Paid' = 'Good',
+                              'In Grace Period' = 'Bad', 'Late (16-30 days)' = 'Bad', 'Late (31-120 days)' = 'Bad'))
+```
+
+```{r}
+data %>%
+  group_by(grade) %>%
+  ggplot(aes(x=grade, fill = loan_status))+
+  geom_bar(position = 'fill') +
+  scale_fill_brewer(palette="Blues") +
+  theme(legend.position="top") +
+  theme_minimal()
+```
+
+```{r}
+data %>%
+  group_by(home_ownership) %>%
+  ggplot(aes(x=home_ownership, fill = loan_status))+
+  geom_bar(position = 'stack') +
+  scale_fill_brewer(palette="Blues") +
+  theme(legend.position="top") +
+  theme_minimal()
+```
+
+```{r}
+data %>%
+  group_by(addr_state) %>%
+  ggplot(aes(x=addr_state, y=loan_amnt))+
+  geom_boxplot(position=position_dodge(1)) +
+  theme(legend.position="top", axis.text.x = element_text(angle = 30, hjust = 1)) +
+  theme_minimal() 
+```
+
